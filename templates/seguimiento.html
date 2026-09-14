@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Control de Seguimiento</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Fondo oscuro al abrir el menú -->
+<div id="overlay" class="menu-overlay" onclick="toggleMenu()"></div>
+
+<!-- Menú Lateral Izquierdo -->
+<div id="sidebar" class="sidebar">
+    <div class="sidebar-header">
+        <h3>Menú Principal</h3>
+        <button class="btn-close" onclick="toggleMenu()">✕</button>
+    </div>
+    <nav class="sidebar-nav">
+        <a href="/seguimiento">📋 Seguimiento</a>
+        <a href="/estudiantes">👨‍🎓 Estudiantes</a>
+        {% if session['rol'] == 'ADMIN' %}
+        <a href="/usuarios">👤 Usuarios</a>
+        {% endif %}
+        <a href="/reporte">📊 Reportes</a>
+        <a href="/logout" class="logout-btn">🚪 Salir</a>
+    </nav>
+</div>
+
+<!-- Barra Superior -->
+<header>
+    <div class="header-brand">
+        <button class="btn-menu" onclick="toggleMenu()">☰</button>
+        <img src="{{ url_for('static', filename='img/logo.png') }}" class="small-logo" alt="Logo">
+        <h2>U.E. Adventista del 7mo Día</h2>
+    </div>
+</header>
+
+<script>
+    function toggleMenu() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
+        
+        sidebar.classList.toggle('active');
+        if (sidebar.classList.contains('active')) {
+            overlay.style.display = 'block';
+        } else {
+            overlay.style.display = 'none';
+        }
+    }
+</script>
+    <div class="container">
+        <h2>Control de Seguimiento Diario</h2>
+        
+        <div style="margin-bottom: 20px;">
+            <label>Nivel y Curso:</label>
+            <select id="filtroCurso" onchange="actualizarFiltro()">
+                <option value="Primaria-1" {% if nivel_actual=='Primaria' and curso_actual==1 %}selected{% endif %}>Primaria 1º</option>
+                <option value="Primaria-2" {% if nivel_actual=='Primaria' and curso_actual==2 %}selected{% endif %}>Primaria 2º</option>
+                <option value="Primaria-3" {% if nivel_actual=='Primaria' and curso_actual==3 %}selected{% endif %}>Primaria 3º</option>
+                <option value="Primaria-4" {% if nivel_actual=='Primaria' and curso_actual==4 %}selected{% endif %}>Primaria 4º</option>
+                <option value="Primaria-5" {% if nivel_actual=='Primaria' and curso_actual==5 %}selected{% endif %}>Primaria 5º</option>
+                <option value="Primaria-6" {% if nivel_actual=='Primaria' and curso_actual==6 %}selected{% endif %}>Primaria 6º</option>
+                <option value="Secundaria-1" {% if nivel_actual=='Secundaria' and curso_actual==1 %}selected{% endif %}>Secundaria 1º</option>
+                <option value="Secundaria-2" {% if nivel_actual=='Secundaria' and curso_actual==2 %}selected{% endif %}>Secundaria 2º</option>
+                <option value="Secundaria-3" {% if nivel_actual=='Secundaria' and curso_actual==3 %}selected{% endif %}>Secundaria 3º</option>
+                <option value="Secundaria-4" {% if nivel_actual=='Secundaria' and curso_actual==4 %}selected{% endif %}>Secundaria 4º</option>
+                <option value="Secundaria-5" {% if nivel_actual=='Secundaria' and curso_actual==5 %}selected{% endif %}>Secundaria 5º</option>
+                <option value="Secundaria-6" {% if nivel_actual=='Secundaria' and curso_actual==6 %}selected{% endif %}>Secundaria 6º</option>
+            </select>
+
+            <label>Materia:</label>
+            <select id="filtroMateria">
+                <!-- Se llena con JS -->
+            </select>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Estudiante</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in estudiantes %}
+                <tr>
+                    <td><strong>{{ e['paterno'] }} {{ e['materno'] }}</strong>, {{ e['nombres'] }}</td>
+                    <td>
+                        <button class="btn-asistio" onclick="registrar('{{ e['id'] }}', 'asistio')">Asistió</button>
+                        <button class="btn-alerta" onclick="registrarYNotificar('{{ e['id'] }}', 'falta', '{{ e['paterno'] }} {{ e['nombres'] }}', '{{ e['celular_padre'] }}', 'falto a clases')">Falta</button>
+                        <button class="btn-alerta" onclick="registrarYNotificar('{{ e['id'] }}', 'no_tarea', '{{ e['paterno'] }} {{ e['nombres'] }}', '{{ e['celular_padre'] }}', 'no realizo su tarea')">No realizó tarea</button>
+                        <button class="btn-alerta" onclick="registrarYNotificar('{{ e['id'] }}', 'falto_respeto', '{{ e['paterno'] }} {{ e['nombres'] }}', '{{ e['celular_padre'] }}', 'falto el respeto en aula')">Faltó el respeto</button>
+                        <button class="btn-alerta" onclick="registrarYNotificar('{{ e['id'] }}', 'mal_comportamiento', '{{ e['paterno'] }} {{ e['nombres'] }}', '{{ e['celular_padre'] }}', 'presento mal comportamiento')">Mal comportamiento</button>
+                        <button class="btn-alerta" onclick="registrarYNotificar('{{ e['id'] }}', 'sin_uniforme', '{{ e['paterno'] }} {{ e['nombres'] }}', '{{ e['celular_padre'] }}', 'asistio sin uniforme')">Sin uniforme</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const materiasPrimaria = ["COMUNICACIÓN Y LENGUAJES", "CIENCIAS SOCIALES", "EDUCACIÓN FÍSICA Y DEPORTES", "EDUCACIÓN MUSICAL", "ARTES PLÁSTICAS Y VISUALES", "MATEMÁTICA", "TÉCNICA TECNOLÓGICA", "CIENCIAS NATURALES", "VALORES, ESPIRITUALIDAD Y RELIGIONES"];
+        const materiasSecundaria = ["COMUNICACIÓN Y LENGUAJES", "LENGUA EXTRANJERA", "CIENCIAS SOCIALES", "EDUCACIÓN FÍSICA Y DEPORTES", "EDUCACIÓN MUSICAL", "ARTES PLÁSTICAS Y VISUALES", "MATEMÁTICA", "CIENCIAS NATURALES: BIOLOGÍA - GEOGRAFÍA", "CIENCIAS NATURALES: FÍSICA", "CIENCIAS NATURALES: QUÍMICA", "COSMOVISIÓNES, FILOSOFÍA Y PSICOLOGÍA", "VALORES, ESPIRITUALIDAD Y RELIGIONES", "TÉCNICA TECNOLÓGICA GENERAL"];
+
+        function cargarMaterias() {
+            const val = document.getElementById('filtroCurso').value;
+            const selectMat = document.getElementById('filtroMateria');
+            selectMat.innerHTML = '';
+            
+            const lista = val.startsWith('Primaria') ? materiasPrimaria : materiasSecundaria;
+            lista.forEach(mat => {
+                let opt = document.createElement('option');
+                opt.value = mat;
+                opt.textContent = mat;
+                selectMat.appendChild(opt);
+            });
+        }
+
+        function actualizarFiltro() {
+            const val = document.getElementById('filtroCurso').value.split('-');
+            window.location.href = `/seguimiento?nivel=${val[0]}&curso=${val[1]}`;
+        }
+
+        function registrar(estudianteId, tipo) {
+            fetch('/guardar-seguimiento', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    estudiante_id: estudianteId,
+                    materia: document.getElementById('filtroMateria').value,
+                    tipo: tipo
+                })
+            });
+        }
+
+        function registrarYNotificar(estudianteId, tipo, nombreAlumno, celularPadre, accionTexto) {
+            registrar(estudianteId, tipo);
+            const cursoVal = document.getElementById('filtroCurso').value;
+            const materiaVal = document.getElementById('filtroMateria').value;
+            
+            const mensaje = `Unidad Educativa Adventista del 7mo Día: El estudiante ${nombreAlumno} del curso ${cursoVal} de la materia ${materiaVal} ${accionTexto}.`;
+            const url = `https://wa.me/${celularPadre}?text=${encodeURIComponent(mensaje)}`;
+            window.open(url, '_blank');
+        }
+
+        cargarMaterias();
+    </script>
+</body>
+</html>

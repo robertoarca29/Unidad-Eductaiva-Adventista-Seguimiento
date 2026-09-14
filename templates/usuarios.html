@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administrar Usuarios - U.E. Adventista del 7mo Día</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div id="overlay" class="menu-overlay" onclick="toggleMenu()"></div>
+
+    <div id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <h3>Menú Principal</h3>
+            <button class="btn-close" onclick="toggleMenu()">✕</button>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="/seguimiento">📋 Seguimiento</a>
+            <a href="/estudiantes">👨‍🎓 Estudiantes</a>
+            {% if session['rol'] == 'ADMIN' %}
+            <a href="/usuarios">👤 Usuarios</a>
+            {% endif %}
+            <a href="/reporte">📊 Reportes</a>
+            <a href="/logout" class="logout-btn">🚪 Salir</a>
+        </nav>
+    </div>
+
+    <header>
+        <div class="header-brand">
+            <button class="btn-menu" onclick="toggleMenu()">☰</button>
+            <img src="{{ url_for('static', filename='img/logo.png') }}" class="small-logo" alt="Logo">
+            <h2>U.E. Adventista del 7mo Día</h2>
+        </div>
+    </header>
+
+    <div class="container">
+        <h2>Registrar Administrador / Docente</h2>
+        <form action="/usuarios" method="POST" class="form-responsive">
+            <input type="text" name="nombre_completo" placeholder="Nombre Completo" required>
+            <input type="text" name="usuario" placeholder="Usuario" required>
+            <input type="password" name="password" placeholder="Contraseña" required>
+            <select name="rol">
+                <option value="PROFESOR">Profesor</option>
+                <option value="ADMIN">Administrador</option>
+            </select>
+            <button type="submit" class="btn-guardar">Guardar Usuario</button>
+        </form>
+
+        <h2>Lista de Usuarios Registrados</h2>
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nombre Completo</th>
+                        <th>Usuario</th>
+                        <th>Rol</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in usuarios %}
+                    <tr>
+                        <td><strong>{{ u['nombre_completo'] }}</strong></td>
+                        <td>{{ u['usuario'] }}</td>
+                        <td>
+                            <span class="badge {% if u['rol'] == 'ADMIN' %}badge-admin{% else %}badge-profesor{% endif %}">
+                                {{ u['rol'] }}
+                            </span>
+                        </td>
+                        <td>
+                            <button class="btn-editar" onclick="abrirModalUsuario('{{ u['id'] }}', '{{ u['nombre_completo'] }}', '{{ u['usuario'] }}', '{{ u['password'] }}', '{{ u['rol'] }}')">✏️ Editar</button>
+                            {% if u['id'] != 1 %}
+                            <a href="/usuarios/eliminar/{{ u['id'] }}" class="btn-eliminar" onclick="return confirm('¿Seguro que deseas eliminar este usuario?')">🗑️ Eliminar</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal Editar Usuario -->
+    <div id="modalUsuario" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="cerrarModalUsuario()">&times;</span>
+            <h3>Editar Usuario</h3>
+            <form id="formEditarUsuario" method="POST">
+                <label>Nombre Completo:</label>
+                <input type="text" id="edit_nombre" name="nombre_completo" required>
+                <label>Usuario:</label>
+                <input type="text" id="edit_usuario" name="usuario" required>
+                <label>Contraseña:</label>
+                <input type="password" id="edit_password" name="password" required>
+                <label>Rol:</label>
+                <select id="edit_rol" name="rol">
+                    <option value="PROFESOR">Profesor</option>
+                    <option value="ADMIN">Administrador</option>
+                </select>
+                <button type="submit" class="btn-guardar" style="margin-top:15px;">Actualizar Usuario</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function toggleMenu() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            sidebar.classList.toggle('active');
+            overlay.style.display = sidebar.classList.contains('active') ? 'block' : 'none';
+        }
+
+        function abrirModalUsuario(id, nombre, usuario, password, rol) {
+            document.getElementById('formEditarUsuario').action = '/usuarios/editar/' + id;
+            document.getElementById('edit_nombre').value = nombre;
+            document.getElementById('edit_usuario').value = usuario;
+            document.getElementById('edit_password').value = password;
+            document.getElementById('edit_rol').value = rol;
+            document.getElementById('modalUsuario').style.display = 'block';
+        }
+
+        function cerrarModalUsuario() {
+            document.getElementById('modalUsuario').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

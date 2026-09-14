@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Estudiantes - U.E. Adventista del 7mo Día</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div id="overlay" class="menu-overlay" onclick="toggleMenu()"></div>
+
+    <div id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <h3>Menú Principal</h3>
+            <button class="btn-close" onclick="toggleMenu()">✕</button>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="/seguimiento">📋 Seguimiento</a>
+            <a href="/estudiantes">👨‍🎓 Estudiantes</a>
+            {% if session['rol'] == 'ADMIN' %}
+            <a href="/usuarios">👤 Usuarios</a>
+            {% endif %}
+            <a href="/reporte">📊 Reportes</a>
+            <a href="/logout" class="logout-btn">🚪 Salir</a>
+        </nav>
+    </div>
+
+    <header>
+        <div class="header-brand">
+            <button class="btn-menu" onclick="toggleMenu()">☰</button>
+            <img src="{{ url_for('static', filename='img/logo.png') }}" class="small-logo" alt="Logo">
+            <h2>U.E. Adventista del 7mo Día</h2>
+        </div>
+    </header>
+
+    <div class="container">
+        <h2>Registrar Estudiante</h2>
+        <form action="/estudiantes" method="POST" class="form-responsive">
+            <input type="text" name="paterno" placeholder="Apellido Paterno" required>
+            <input type="text" name="materno" placeholder="Apellido Materno" required>
+            <input type="text" name="nombres" placeholder="Nombres" required>
+            
+            <label>Nivel:</label>
+            <select name="nivel" required>
+                <option value="Primaria">Primaria</option>
+                <option value="Secundaria">Secundaria</option>
+            </select>
+            
+            <label>Curso:</label>
+            <select name="curso" required>
+                <option value="1">1º</option>
+                <option value="2">2º</option>
+                <option value="3">3º</option>
+                <option value="4">4º</option>
+                <option value="5">5º</option>
+                <option value="6">6º</option>
+            </select>
+            
+            <input type="text" name="nombre_padre" placeholder="Nombre del Padre/Tutor" required>
+            <input type="text" name="celular_padre" placeholder="Número Celular WhatsApp" required>
+            <input type="text" name="domicilio" placeholder="Domicilio" required>
+            
+            <button type="submit" class="btn-guardar">Guardar Estudiante</button>
+        </form>
+
+        <h2>Estudiantes Registrados (Orden por Apellido Paterno)</h2>
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Paterno</th>
+                        <th>Materno</th>
+                        <th>Nombres</th>
+                        <th>Curso</th>
+                        <th>Padre/Tutor</th>
+                        <th>Celular</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in estudiantes %}
+                    <tr>
+                        <td><strong>{{ e['paterno'] }}</strong></td>
+                        <td>{{ e['materno'] }}</td>
+                        <td>{{ e['nombres'] }}</td>
+                        <td>{{ e['nivel'] }} {{ e['curso'] }}º</td>
+                        <td>{{ e['nombre_padre'] }}</td>
+                        <td>{{ e['celular_padre'] }}</td>
+                        <td>
+                            <button class="btn-editar" onclick="abrirModalEstudiante('{{ e['id'] }}', '{{ e['paterno'] }}', '{{ e['materno'] }}', '{{ e['nombres'] }}', '{{ e['nivel'] }}', '{{ e['curso'] }}', '{{ e['nombre_padre'] }}', '{{ e['celular_padre'] }}', '{{ e['domicilio'] }}')">✏️ Editar</button>
+                            <a href="/estudiantes/eliminar/{{ e['id'] }}" class="btn-eliminar" onclick="return confirm('¿Seguro de eliminar al estudiante? Se borrará también su historial.')">🗑️ Eliminar</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal Editar Estudiante -->
+    <div id="modalEstudiante" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="cerrarModalEstudiante()">&times;</span>
+            <h3>Editar Datos de Estudiante</h3>
+            <form id="formEditarEstudiante" method="POST">
+                <label>Apellido Paterno:</label>
+                <input type="text" id="edit_paterno" name="paterno" required>
+                <label>Apellido Materno:</label>
+                <input type="text" id="edit_materno" name="materno" required>
+                <label>Nombres:</label>
+                <input type="text" id="edit_nombres" name="nombres" required>
+                <label>Nivel:</label>
+                <select id="edit_nivel" name="nivel">
+                    <option value="Primaria">Primaria</option>
+                    <option value="Secundaria">Secundaria</option>
+                </select>
+                <label>Curso:</label>
+                <select id="edit_curso" name="curso">
+                    <option value="1">1º</option>
+                    <option value="2">2º</option>
+                    <option value="3">3º</option>
+                    <option value="4">4º</option>
+                    <option value="5">5º</option>
+                    <option value="6">6º</option>
+                </select>
+                <label>Nombre Padre/Tutor:</label>
+                <input type="text" id="edit_padre" name="nombre_padre" required>
+                <label>Celular WhatsApp:</label>
+                <input type="text" id="edit_celular" name="celular_padre" required>
+                <label>Domicilio:</label>
+                <input type="text" id="edit_domicilio" name="domicilio" required>
+                
+                <button type="submit" class="btn-guardar" style="margin-top:15px;">Actualizar Estudiante</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function toggleMenu() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            sidebar.classList.toggle('active');
+            overlay.style.display = sidebar.classList.contains('active') ? 'block' : 'none';
+        }
+
+        function abrirModalEstudiante(id, pat, mat, nom, niv, cur, pad, cel, dom) {
+            document.getElementById('formEditarEstudiante').action = '/estudiantes/editar/' + id;
+            document.getElementById('edit_paterno').value = pat;
+            document.getElementById('edit_materno').value = mat;
+            document.getElementById('edit_nombres').value = nom;
+            document.getElementById('edit_nivel').value = niv;
+            document.getElementById('edit_curso').value = cur;
+            document.getElementById('edit_padre').value = pad;
+            document.getElementById('edit_celular').value = cel;
+            document.getElementById('edit_domicilio').value = dom;
+            document.getElementById('modalEstudiante').style.display = 'block';
+        }
+
+        function cerrarModalEstudiante() {
+            document.getElementById('modalEstudiante').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

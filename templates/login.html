@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Acceso - U.E. Adventista del 7mo Día</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="login-body">
+    <div class="login-card">
+        <div class="header-brand">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" class="small-logo">
+            <h2>Unidad Educativa Adventista del 7mo Día</h2>
+        </div>
+        <hr>
+        <h3>Control de Seguimiento Escolar</h3>
+        <form action="/login" method="POST">
+            <label>Usuario:</label>
+            <input type="text" name="usuario" required>
+            <label>Contraseña:</label>
+            <input type="password" name="password" required>
+            <button type="submit">Ingresar</button>
+        </form>
+    </div>
+</body>
+</html>

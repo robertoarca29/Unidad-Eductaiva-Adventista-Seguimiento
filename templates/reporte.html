@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Reportes de Estudiante</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Fondo oscuro al abrir el menú -->
+<div id="overlay" class="menu-overlay" onclick="toggleMenu()"></div>
+
+<!-- Menú Lateral Izquierdo -->
+<div id="sidebar" class="sidebar">
+    <div class="sidebar-header">
+        <h3>Menú Principal</h3>
+        <button class="btn-close" onclick="toggleMenu()">✕</button>
+    </div>
+    <nav class="sidebar-nav">
+        <a href="/seguimiento">📋 Seguimiento</a>
+        <a href="/estudiantes">👨‍🎓 Estudiantes</a>
+        {% if session['rol'] == 'ADMIN' %}
+        <a href="/usuarios">👤 Usuarios</a>
+        {% endif %}
+        <a href="/reporte">📊 Reportes</a>
+        <a href="/logout" class="logout-btn">🚪 Salir</a>
+    </nav>
+</div>
+
+<!-- Barra Superior -->
+<header>
+    <div class="header-brand">
+        <button class="btn-menu" onclick="toggleMenu()">☰</button>
+        <img src="{{ url_for('static', filename='img/logo.png') }}" class="small-logo" alt="Logo">
+        <h2>U.E. Adventista del 7mo Día</h2>
+    </div>
+</header>
+
+<script>
+    function toggleMenu() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
+        
+        sidebar.classList.toggle('active');
+        if (sidebar.classList.contains('active')) {
+            overlay.style.display = 'block';
+        } else {
+            overlay.style.display = 'none';
+        }
+    }
+</script>
+
+    <div class="container">
+        <div class="no-print" style="margin-bottom: 20px;">
+            <form action="/reporte" method="GET">
+                <label>Seleccionar Estudiante:</label>
+                <select name="estudiante_id" required>
+                    <option value="">-- Seleccionar --</option>
+                    {% for e in estudiantes %}
+                    <option value="{{ e['id'] }}" {% if estudiante and estudiante['id'] == e['id'] %}selected{% endif %}>
+                        {{ e['paterno'] }} {{ e['materno'] }}, {{ e['nombres'] }} ({{ e['nivel'] }} {{ e['curso'] }}º)
+                    </option>
+                    {% endfor %}
+                </select>
+                <button type="submit">Generar Reporte</button>
+            </form>
+            {% if estudiante %}
+            <button onclick="window.print()" style="margin-top: 10px;">Imprimir a PDF</button>
+            {% endif %}
+        </div>
+
+        {% if estudiante %}
+        <div class="reporte-contenido">
+            <h2>Unidad Educativa Adventista del 7mo Día</h2>
+            <h3>Reporte Individual de Asistencia y Seguimiento</h3>
+            <hr>
+            <p><strong>Estudiante:</strong> {{ estudiante['paterno'] }} {{ estudiante['materno'] }}, {{ estudiante['nombres'] }}</p>
+            <p><strong>Curso:</strong> {{ estudiante['nivel'] }} {{ estudiante['curso'] }}º</p>
+            <p><strong>Padre/Tutor:</strong> {{ estudiante['nombre_padre'] }} ({{ estudiante['celular_padre'] }})</p>
+            <p><strong>Domicilio:</strong> {{ estudiante['domicilio'] }}</p>
+
+            <h3>Historial de Registros</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha y Hora</th>
+                        <th>Materia</th>
+                        <th>Registro / Incidencia</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in registros %}
+                    <tr>
+                        <td>{{ r['fecha'] }}</td>
+                        <td>{{ r['materia'] }}</td>
+                        <td>{{ r['tipo_registro'] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
