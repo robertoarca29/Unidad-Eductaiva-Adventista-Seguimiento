@@ -1,19 +1,58 @@
-import sqlite3
+import os
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 
 app = Flask(__name__)
-app.secret_key = 'clave_secreta_adventista_7mo_dia'
+app.secret_key = os.environ.get('SECRET_KEY', 'clave_secreta_super_segura')
 
-def get_db():
-    conn = sqlite3.connect('colegio.db')
-    conn.row_factory = sqlite3.Row
-    return conn
+# Configuración de base de datos
+database_url = os.environ.get('DATABASE_URL', 'postgresql://adventista_user:1gtSXjAqd1caFSytxAl6vl2C2CKyKyaO@dpg-daki28jl550s73fa1kdg-a/adventistadb')
+
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+
+# ==================== INICIALIZACIÓN DE TABLAS ====================
 
 def init_db():
-    conn = get_db()
-    with open('schema.sql', mode='r', encoding='utf-8') as f:
-        conn.executescript(f.read())
-    conn.close()
+    with app.app_context():
+        db.session.execute(text('''
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id SERIAL PRIMARY KEY,
+                nombre_completo VARCHAR(150),
+                usuario VARCHAR(50) UNIQUE,
+                password VARCHAR(100),
+                rol VARCHAR(20)
+            );
+        '''))
+        db.session.execute(text('''
+            CREATE TABLE IF NOT EXISTS estudiantes (
+                id SERIAL PRIMARY KEY,
+                paterno VARCHAR(50),
+                materno VARCHAR(50),
+                nombres VARCHAR(100),
+                nivel VARCHAR(50),
+                curso INT,
+                nombre_padre VARCHAR(150),
+                celular_padre VARCHAR(20),
+                domicilio VARCHAR(200)
+            );
+        '''))
+        db.session.execute(text('''
+            CREATE TABLE IF NOT EXISTS seguimiento (
+                id SERIAL PRIMARY KEY,
+                estudiante_id INT,
+                materia VARCHAR(100),
+                tipo_registro VARCHAR(50),
+                fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        '''))
+        db.session.commit()
 
 init_db()
 
@@ -31,15 +70,15 @@ def login():
         user_input = request.form['usuario']
         pass_input = request.form['password']
         
-        conn = get_db()
-        user = conn.execute('SELECT * FROM usuarios WHERE usuario = ? AND password = ?', 
-                            (user_input, pass_input)).fetchone()
-        conn.close()
+        result = db.session.execute(
+            text('SELECT * FROM usuarios WHERE usuario = :u AND password = :p'),
+            {'u': user_input, 'p': pass_input}
+        ).mappings().fetchone()
         
-        if user:
-            session['usuario'] = user['usuario']
-            session['nombre'] = user['nombre_completo']
-            session['rol'] = user['rol']
+        if result:
+            session['usuario'] = result['usuario']
+            session['nombre'] = result['nombre_completo']
+            session['rol'] = result['rol']
             return redirect(url_for('seguimiento'))
             
     return render_template('login.html')
@@ -56,18 +95,19 @@ def usuarios():
     if 'usuario' not in session or session.get('rol') != 'ADMIN':
         return redirect(url_for('seguimiento'))
         
-    conn = get_db()
     if request.method == 'POST':
         nombre = request.form['nombre_completo']
         usr = request.form['usuario']
         pwd = request.form['password']
         rol = request.form['rol']
-        conn.execute('INSERT INTO usuarios (nombre_completo, usuario, password, rol) VALUES (?, ?, ?, ?)',
-                     (nombre, usr, pwd, rol))
-        conn.commit()
         
-    lista_usuarios = conn.execute('SELECT * FROM usuarios').fetchall()
-    conn.close()
+        db.session.execute(
+            text('INSERT INTO usuarios (nombre_completo, usuario, password, rol) VALUES (:n, :u, :p, :r)'),
+            {'n': nombre, 'u': usr, 'p': pwd, 'r': rol}
+        )
+        db.session.commit()
+        
+    lista_usuarios = db.session.execute(text('SELECT * FROM usuarios')).mappings().fetchall()
     return render_template('usuarios.html', usuarios=lista_usuarios)
 
 @app.route('/usuarios/editar/<int:id>', methods=['GET', 'POST'])
@@ -81,12 +121,13 @@ def editar_usuario(id):
         pwd = request.form['password']
         rol = request.form['rol']
         
-        conn = get_db()
-        conn.execute('''UPDATE usuarios 
-                        SET nombre_completo = ?, usuario = ?, password = ?, rol = ? 
-                        WHERE id = ?''', (nombre, usr, pwd, rol, id))
-        conn.commit()
-        conn.close()
+        db.session.execute(
+            text('''UPDATE usuarios 
+                    SET nombre_completo = :n, usuario = :u, password = :p, rol = :r 
+                    WHERE id = :id'''),
+            {'n': nombre, 'u': usr, 'p': pwd, 'r': rol, 'id': id}
+        )
+        db.session.commit()
         
     return redirect(url_for('usuarios'))
 
@@ -95,12 +136,9 @@ def eliminar_usuario(id):
     if 'usuario' not in session or session.get('rol') != 'ADMIN':
         return redirect(url_for('seguimiento'))
         
-    conn = get_db()
-    # Permitir eliminar siempre que no sea la única cuenta activa o ID 1
     if id != 1:
-        conn.execute('DELETE FROM usuarios WHERE id = ?', (id,))
-        conn.commit()
-    conn.close()
+        db.session.execute(text('DELETE FROM usuarios WHERE id = :id'), {'id': id})
+        db.session.commit()
     
     return redirect(url_for('usuarios'))
 
@@ -111,7 +149,6 @@ def estudiantes():
     if 'usuario' not in session:
         return redirect(url_for('login'))
         
-    conn = get_db()
     if request.method == 'POST':
         paterno = request.form['paterno']
         materno = request.form['materno']
@@ -122,14 +159,15 @@ def estudiantes():
         celular = request.form['celular_padre']
         domicilio = request.form['domicilio']
         
-        conn.execute('''INSERT INTO estudiantes 
-                     (paterno, materno, nombres, nivel, curso, nombre_padre, celular_padre, domicilio)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-                     (paterno, materno, nombres, nivel, curso, padre, celular, domicilio))
-        conn.commit()
+        db.session.execute(
+            text('''INSERT INTO estudiantes 
+                    (paterno, materno, nombres, nivel, curso, nombre_padre, celular_padre, domicilio)
+                    VALUES (:pat, :mat, :nom, :niv, :cur, :pad, :cel, :dom)'''),
+            {'pat': paterno, 'mat': materno, 'nom': nombres, 'niv': nivel, 'cur': curso, 'pad': padre, 'cel': celular, 'dom': domicilio}
+        )
+        db.session.commit()
         
-    lista_estudiantes = conn.execute('SELECT * FROM estudiantes ORDER BY paterno, materno, nombres ASC').fetchall()
-    conn.close()
+    lista_estudiantes = db.session.execute(text('SELECT * FROM estudiantes ORDER BY paterno, materno, nombres ASC')).mappings().fetchall()
     return render_template('estudiantes.html', estudiantes=lista_estudiantes)
 
 @app.route('/estudiantes/editar/<int:id>', methods=['GET', 'POST'])
@@ -147,14 +185,14 @@ def editar_estudiante(id):
         celular = request.form['celular_padre']
         domicilio = request.form['domicilio']
         
-        conn = get_db()
-        conn.execute('''UPDATE estudiantes 
-                        SET paterno = ?, materno = ?, nombres = ?, nivel = ?, curso = ?, 
-                            nombre_padre = ?, celular_padre = ?, domicilio = ? 
-                        WHERE id = ?''',
-                     (paterno, materno, nombres, nivel, curso, padre, celular, domicilio, id))
-        conn.commit()
-        conn.close()
+        db.session.execute(
+            text('''UPDATE estudiantes 
+                    SET paterno = :pat, materno = :mat, nombres = :nom, nivel = :niv, curso = :cur, 
+                        nombre_padre = :pad, celular_padre = :cel, domicilio = :dom 
+                    WHERE id = :id'''),
+            {'pat': paterno, 'mat': materno, 'nom': nombres, 'niv': nivel, 'cur': curso, 'pad': padre, 'cel': celular, 'dom': domicilio, 'id': id}
+        )
+        db.session.commit()
         
     return redirect(url_for('estudiantes'))
 
@@ -163,11 +201,9 @@ def eliminar_estudiante(id):
     if 'usuario' not in session:
         return redirect(url_for('login'))
         
-    conn = get_db()
-    conn.execute('DELETE FROM seguimiento WHERE estudiante_id = ?', (id,))
-    conn.execute('DELETE FROM estudiantes WHERE id = ?', (id,))
-    conn.commit()
-    conn.close()
+    db.session.execute(text('DELETE FROM seguimiento WHERE estudiante_id = :id'), {'id': id})
+    db.session.execute(text('DELETE FROM estudiantes WHERE id = :id'), {'id': id})
+    db.session.commit()
     
     return redirect(url_for('estudiantes'))
 
@@ -181,12 +217,10 @@ def seguimiento():
     nivel = request.args.get('nivel', 'Primaria')
     curso = request.args.get('curso', 1)
     
-    conn = get_db()
-    estudiantes_filtrados = conn.execute(
-        'SELECT * FROM estudiantes WHERE nivel = ? AND curso = ? ORDER BY paterno, materno, nombres ASC',
-        (nivel, curso)
-    ).fetchall()
-    conn.close()
+    estudiantes_filtrados = db.session.execute(
+        text('SELECT * FROM estudiantes WHERE nivel = :niv AND curso = :cur ORDER BY paterno, materno, nombres ASC'),
+        {'niv': nivel, 'cur': curso}
+    ).mappings().fetchall()
     
     return render_template('seguimiento.html', estudiantes=estudiantes_filtrados, nivel_actual=nivel, curso_actual=int(curso))
 
@@ -196,11 +230,11 @@ def guardar_seguimiento():
         return jsonify({'status': 'error'}), 401
         
     data = request.json
-    conn = get_db()
-    conn.execute('INSERT INTO seguimiento (estudiante_id, materia, tipo_registro) VALUES (?, ?, ?)',
-                 (data['estudiante_id'], data['materia'], data['tipo']))
-    conn.commit()
-    conn.close()
+    db.session.execute(
+        text('INSERT INTO seguimiento (estudiante_id, materia, tipo_registro) VALUES (:e_id, :mat, :tipo)'),
+        {'e_id': data['estudiante_id'], 'mat': data['materia'], 'tipo': data['tipo']}
+    )
+    db.session.commit()
     return jsonify({'status': 'ok'})
 
 @app.route('/reporte')
@@ -212,18 +246,22 @@ def reporte():
     estudiante = None
     registros = []
     
-    conn = get_db()
-    todos_estudiantes = conn.execute('SELECT * FROM estudiantes ORDER BY paterno, materno, nombres ASC').fetchall()
+    todos_estudiantes = db.session.execute(text('SELECT * FROM estudiantes ORDER BY paterno, materno, nombres ASC')).mappings().fetchall()
     
     if estudiante_id:
-        estudiante = conn.execute('SELECT * FROM estudiantes WHERE id = ?', (estudiante_id,)).fetchone()
-        registros = conn.execute('''SELECT * FROM seguimiento 
-                                   WHERE estudiante_id = ? ORDER BY fecha DESC''', (estudiante_id,)).fetchall()
-    conn.close()
+        estudiante = db.session.execute(
+            text('SELECT * FROM estudiantes WHERE id = :id'),
+            {'id': estudiante_id}
+        ).mappings().fetchone()
+        
+        registros = db.session.execute(
+            text('SELECT * FROM seguimiento WHERE estudiante_id = :id ORDER BY fecha DESC'),
+            {'id': estudiante_id}
+        ).mappings().fetchall()
     
     return render_template('reporte.html', estudiantes=todos_estudiantes, estudiante=estudiante, registros=registros)
 
-# ==================== EJECUCIÓN AL FINAL DEL ARCHIVO ====================
+# ==================== EJECUCIÓN ====================
 
 if __name__ == '__main__':
     app.run(debug=True)
