@@ -21,6 +21,7 @@ db = SQLAlchemy(app)
 
 def init_db():
     with app.app_context():
+        # Crear tablas
         db.session.execute(text('''
             CREATE TABLE IF NOT EXISTS usuarios (
                 id SERIAL PRIMARY KEY,
@@ -53,6 +54,18 @@ def init_db():
             );
         '''))
         db.session.commit()
+
+        # Insertar el usuario admin por defecto si no existe ninguno
+        usr_check = db.session.execute(
+            text("SELECT * FROM usuarios WHERE usuario = 'admin'")
+        ).fetchone()
+
+        if not usr_check:
+            db.session.execute(
+                text("INSERT INTO usuarios (nombre_completo, usuario, password, rol) VALUES (:n, :u, :p, :r)"),
+                {'n': 'Administrador del Sistema', 'u': 'admin', 'p': 'admin123', 'r': 'ADMIN'}
+            )
+            db.session.commit()
 
 init_db()
 
