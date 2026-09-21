@@ -32,6 +32,14 @@ def init_db():
                 rol VARCHAR(20)
             );
         '''))
+
+        # Alterar columna por si ya fue creada previamente con VARCHAR(100)
+        try:
+            db.session.execute(text('ALTER TABLE usuarios ALTER COLUMN password TYPE VARCHAR(255);'))
+        except Exception:
+            pass
+
+        # Resto de tablas...
         db.session.execute(text('''
             CREATE TABLE IF NOT EXISTS estudiantes (
                 id SERIAL PRIMARY KEY,
