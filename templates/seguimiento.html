@@ -7,47 +7,48 @@
 </head>
 <body>
     <!-- Fondo oscuro al abrir el menú -->
-<div id="overlay" class="menu-overlay" onclick="toggleMenu()"></div>
+    <div id="overlay" class="menu-overlay" onclick="toggleMenu()"></div>
 
-<!-- Menú Lateral Izquierdo -->
-<div id="sidebar" class="sidebar">
-    <div class="sidebar-header">
-        <h3>Menú Principal</h3>
-        <button class="btn-close" onclick="toggleMenu()">✕</button>
+    <!-- Menú Lateral Izquierdo -->
+    <div id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <h3>Menú Principal</h3>
+            <button class="btn-close" onclick="toggleMenu()">✕</button>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="/seguimiento">📋 Seguimiento</a>
+            <a href="/estudiantes">👨‍🎓 Estudiantes</a>
+            {% if session['rol'] == 'ADMIN' %}
+            <a href="/usuarios">👤 Usuarios</a>
+            {% endif %}
+            <a href="/reporte">📊 Reportes</a>
+            <a href="/logout" class="logout-btn">🚪 Salir</a>
+        </nav>
     </div>
-    <nav class="sidebar-nav">
-        <a href="/seguimiento">📋 Seguimiento</a>
-        <a href="/estudiantes">👨‍🎓 Estudiantes</a>
-        {% if session['rol'] == 'ADMIN' %}
-        <a href="/usuarios">👤 Usuarios</a>
-        {% endif %}
-        <a href="/reporte">📊 Reportes</a>
-        <a href="/logout" class="logout-btn">🚪 Salir</a>
-    </nav>
-</div>
 
-<!-- Barra Superior -->
-<header>
-    <div class="header-brand">
-        <button class="btn-menu" onclick="toggleMenu()">☰</button>
-        <img src="{{ url_for('static', filename='img/logo.png') }}" class="small-logo" alt="Logo">
-        <h2>U.E. Adventista del 7mo Día</h2>
-    </div>
-</header>
+    <!-- Barra Superior -->
+    <header>
+        <div class="header-brand">
+            <button class="btn-menu" onclick="toggleMenu()">☰</button>
+            <img src="{{ url_for('static', filename='img/logo.png') }}" class="small-logo" alt="Logo">
+            <h2>U.E. Adventista del 7mo Día</h2>
+        </div>
+    </header>
 
-<script>
-    function toggleMenu() {
-        const sidebar = document.getElementById('sidebar');
-        const overlay = document.getElementById('overlay');
-        
-        sidebar.classList.toggle('active');
-        if (sidebar.classList.contains('active')) {
-            overlay.style.display = 'block';
-        } else {
-            overlay.style.display = 'none';
+    <script>
+        function toggleMenu() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            
+            sidebar.classList.toggle('active');
+            if (sidebar.classList.contains('active')) {
+                overlay.style.display = 'block';
+            } else {
+                overlay.style.display = 'none';
+            }
         }
-    }
-</script>
+    </script>
+
     <div class="container">
         <h2>Control de Seguimiento Diario</h2>
         
@@ -87,11 +88,15 @@
                     <td><strong>{{ e['paterno'] }} {{ e['materno'] }}</strong>, {{ e['nombres'] }}</td>
                     <td>
                         <button class="btn-asistio" onclick="registrar('{{ e['id'] }}', 'asistio')">Asistió</button>
-                        <button class="btn-alerta" onclick="registrarYNotificar('{{ e['id'] }}', 'falta', '{{ e['paterno'] }} {{ e['nombres'] }}', '{{ e['celular_padre'] }}', 'falto a clases')">Falta</button>
-                        <button class="btn-alerta" onclick="registrarYNotificar('{{ e['id'] }}', 'no_tarea', '{{ e['paterno'] }} {{ e['nombres'] }}', '{{ e['celular_padre'] }}', 'no realizo su tarea')">No realizó tarea</button>
-                        <button class="btn-alerta" onclick="registrarYNotificar('{{ e['id'] }}', 'falto_respeto', '{{ e['paterno'] }} {{ e['nombres'] }}', '{{ e['celular_padre'] }}', 'falto el respeto en aula')">Faltó el respeto</button>
-                        <button class="btn-alerta" onclick="registrarYNotificar('{{ e['id'] }}', 'mal_comportamiento', '{{ e['paterno'] }} {{ e['nombres'] }}', '{{ e['celular_padre'] }}', 'presento mal comportamiento')">Mal comportamiento</button>
-                        <button class="btn-alerta" onclick="registrarYNotificar('{{ e['id'] }}', 'sin_uniforme', '{{ e['paterno'] }} {{ e['nombres'] }}', '{{ e['celular_padre'] }}', 'asistio sin uniforme')">Sin uniforme</button>
+                        <button class="btn-alerta" onclick="registrarYNotificar('{{ e['id'] }}', 'falta', '{{ e['paterno'] }} {{ e['nombres'] }}', '{{ e['celular_padre'] }}', 'faltó a clases')">Falta</button>
+                        <button class="btn-alerta" onclick="registrarYNotificar('{{ e['id'] }}', 'llego_tarde', '{{ e['paterno'] }} {{ e['nombres'] }}', '{{ e['celular_padre'] }}', 'llegó tarde a la clase')">Llegó tarde</button>
+                        <button class="btn-alerta" onclick="registrarYNotificar('{{ e['id'] }}', 'no_trabajo_materia', '{{ e['paterno'] }} {{ e['nombres'] }}', '{{ e['celular_padre'] }}', 'no trabajó en la materia')">No trabajó materia</button>
+                        <button class="btn-alerta" onclick="registrarYNotificar('{{ e['id'] }}', 'interrumpio_clase', '{{ e['paterno'] }} {{ e['nombres'] }}', '{{ e['celular_padre'] }}', 'interrumpió la clase')">Interrumpió la clase</button>
+                        <button class="btn-asistio" onclick="registrar('{{ e['id'] }}', 'cumple_tareas')">Cumple con tareas</button>
+                        <button class="btn-alerta" onclick="registrarYNotificar('{{ e['id'] }}', 'no_tarea', '{{ e['paterno'] }} {{ e['nombres'] }}', '{{ e['celular_padre'] }}', 'no realizó su tarea')">No realizó tarea</button>
+                        <button class="btn-alerta" onclick="registrarYNotificar('{{ e['id'] }}', 'falto_respeto', '{{ e['paterno'] }} {{ e['nombres'] }}', '{{ e['celular_padre'] }}', 'faltó el respeto en el aula')">Faltó el respeto</button>
+                        <button class="btn-alerta" onclick="registrarYNotificar('{{ e['id'] }}', 'mal_comportamiento', '{{ e['paterno'] }} {{ e['nombres'] }}', '{{ e['celular_padre'] }}', 'presentó mal comportamiento')">Mal comportamiento</button>
+                        <button class="btn-alerta" onclick="registrarYNotificar('{{ e['id'] }}', 'sin_uniforme', '{{ e['paterno'] }} {{ e['nombres'] }}', '{{ e['celular_padre'] }}', 'asistió sin uniforme')">Sin uniforme</button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -100,8 +105,38 @@
     </div>
 
     <script>
-        const materiasPrimaria = ["COMUNICACIÓN Y LENGUAJES", "CIENCIAS SOCIALES", "EDUCACIÓN FÍSICA Y DEPORTES", "EDUCACIÓN MUSICAL", "ARTES PLÁSTICAS Y VISUALES", "MATEMÁTICA", "TÉCNICA TECNOLÓGICA", "CIENCIAS NATURALES", "VALORES, ESPIRITUALIDAD Y RELIGIONES"];
-        const materiasSecundaria = ["COMUNICACIÓN Y LENGUAJES", "LENGUA EXTRANJERA", "CIENCIAS SOCIALES", "EDUCACIÓN FÍSICA Y DEPORTES", "EDUCACIÓN MUSICAL", "ARTES PLÁSTICAS Y VISUALES", "MATEMÁTICA", "CIENCIAS NATURALES: BIOLOGÍA - GEOGRAFÍA", "CIENCIAS NATURALES: FÍSICA", "CIENCIAS NATURALES: QUÍMICA", "COSMOVISIÓNES, FILOSOFÍA Y PSICOLOGÍA", "VALORES, ESPIRITUALIDAD Y RELIGIONES", "TÉCNICA TECNOLÓGICA GENERAL"];
+        const materiasPrimaria = [
+            "INGLÉS",
+            "COMPUTACIÓN",
+            "COMUNICACIÓN Y LENGUAJES",
+            "CIENCIAS SOCIALES",
+            "EDUCACIÓN FÍSICA Y DEPORTES",
+            "EDUCACIÓN MUSICAL",
+            "ARTES PLÁSTICAS Y VISUALES",
+            "MATEMÁTICA",
+            "TÉCNICA TECNOLÓGICA",
+            "CIENCIAS NATURALES",
+            "VALORES, ESPIRITUALIDAD Y RELIGIONES"
+        ];
+
+        const materiasSecundaria = [
+            "ROBÓTICA",
+            "COMPUTACIÓN",
+            "PROGRAMACIÓN",
+            "COMUNICACIÓN Y LENGUAJES",
+            "LENGUA EXTRANJERA",
+            "CIENCIAS SOCIALES",
+            "EDUCACIÓN FÍSICA Y DEPORTES",
+            "EDUCACIÓN MUSICAL",
+            "ARTES PLÁSTICAS Y VISUALES",
+            "MATEMÁTICA",
+            "CIENCIAS NATURALES: BIOLOGÍA - GEOGRAFÍA",
+            "CIENCIAS NATURALES: FÍSICA",
+            "CIENCIAS NATURALES: QUÍMICA",
+            "COSMOVISIÓNES, FILOSOFÍA Y PSICOLOGÍA",
+            "VALORES, ESPIRITUALIDAD Y RELIGIONES",
+            "TÉCNICA TECNOLÓGICA GENERAL"
+        ];
 
         function cargarMaterias() {
             const val = document.getElementById('filtroCurso').value;
@@ -139,7 +174,7 @@
             const cursoVal = document.getElementById('filtroCurso').value;
             const materiaVal = document.getElementById('filtroMateria').value;
             
-            const mensaje = `Unidad Educativa Adventista del 7mo Día: El estudiante ${nombreAlumno} del curso ${cursoVal} de la materia ${materiaVal} ${accionTexto}.`;
+            const mensaje = `Unidad Educativa Adventista del 7mo Día: El estudiante ${nombreAlumno} del curso ${cursoVal} en la materia de ${materiaVal} ${accionTexto}.`;
             const url = `https://wa.me/${celularPadre}?text=${encodeURIComponent(mensaje)}`;
             window.open(url, '_blank');
         }
