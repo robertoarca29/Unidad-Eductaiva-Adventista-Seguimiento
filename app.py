@@ -1,15 +1,14 @@
 import os
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'clave_secreta_super_segura')
 
-# Configuración de variables de entorno y seguridad
-app.secret_key = os.environ.get('SECRET_KEY', 'clave_secreta_por_defecto_desarrollo')
-
-# La URL de la BD debe provenir estrictamente de una variable de entorno en producción
-database_url = os.environ.get('DATABASE_URL', 'postgresql://localhost/adventistadb')
+# Configuración de base de datos
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///tu_base.db')
 
 if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
@@ -19,53 +18,61 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# ==================== MODELOS (ORM) ====================
-
-class Usuario(db.Model):
-    __tablename__ = 'usuarios'
-    id = db.Column(db.Integer, primary_key=True)
-    nombre_completo = db.Column(db.String(150), nullable=False)
-    usuario = db.Column(db.String(50), unique=True, nullable=False)
-    password = db.Column(db.String(255), nullable=False)
-    rol = db.Column(db.String(20), nullable=False)
-
-class Estudiante(db.Model):
-    __tablename__ = 'estudiantes'
-    id = db.Column(db.Integer, primary_key=True)
-    paterno = db.Column(db.String(50))
-    materno = db.Column(db.String(50))
-    nombres = db.Column(db.String(100), nullable=False)
-    nivel = db.Column(db.String(50))
-    curso = db.Column(db.Integer)
-    nombre_padre = db.Column(db.String(150))
-    celular_padre = db.Column(db.String(20))
-    domicilio = db.Column(db.String(200))
-    seguimientos = db.relationship('Seguimiento', backref='estudiante', cascade="all, delete-orphan", lazy=True)
-
-class Seguimiento(db.Model):
-    __tablename__ = 'seguimiento'
-    id = db.Column(db.Integer, primary_key=True)
-    estudiante_id = db.Column(db.Integer, db.ForeignKey('estudiantes.id'), nullable=False)
-    materia = db.Column(db.String(100))
-    tipo_registro = db.Column(db.String(50))
-    fecha = db.Column(db.DateTime, server_default=db.func.now())
-
-# ==================== INICIALIZACIÓN DE BASE DE DATOS ====================
+# ==================== INICIALIZACIÓN DE TABLAS ====================
 
 def init_db():
     with app.app_context():
-        db.create_all()
-        # Verificar y crear el usuario administrador por defecto si no existe
-        admin_user = Usuario.query.filter_by(usuario='admin').first()
-        if not admin_user:
-            admin_defecto = Usuario(
-                nombre_completo='Administrador del Sistema',
-                usuario='admin',
-                password=generate_password_hash('admin123'),
-                rol='ADMIN'
+        # Crear tablas si no existen
+        db.session.execute(text('''
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id SERIAL PRIMARY KEY,
+                nombre_completo VARCHAR(150),
+                usuario VARCHAR(50) UNIQUE,
+                password VARCHAR(255),
+                rol VARCHAR(20)
+            );
+        '''))
+        db.session.execute(text('''
+            CREATE TABLE IF NOT EXISTS estudiantes (
+                id SERIAL PRIMARY KEY,
+                paterno VARCHAR(50),
+                materno VARCHAR(50),
+                nombres VARCHAR(100),
+                nivel VARCHAR(50),
+                curso INT,
+                nombre_padre VARCHAR(150),
+                celular_padre VARCHAR(20),
+                domicilio VARCHAR(200)
+            );
+        '''))
+        db.session.execute(text('''
+            CREATE TABLE IF NOT EXISTS seguimiento (
+                id SERIAL PRIMARY KEY,
+                estudiante_id INT,
+                materia VARCHAR(100),
+                tipo_registro VARCHAR(50),
+                fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        '''))
+        db.session.commit()
+
+        # Insertar o actualizar la contraseña cifrada del usuario 'admin'
+        hashed_pw = generate_password_hash('admin123')
+        usr_check = db.session.execute(
+            text("SELECT id FROM usuarios WHERE usuario = 'admin'")
+        ).fetchone()
+
+        if not usr_check:
+            db.session.execute(
+                text("INSERT INTO usuarios (nombre_completo, usuario, password, rol) VALUES (:n, :u, :p, :r)"),
+                {'n': 'Administrador del Sistema', 'u': 'admin', 'p': hashed_pw, 'r': 'ADMIN'}
             )
-            db.session.add(admin_defecto)
-            db.session.commit()
+        else:
+            db.session.execute(
+                text("UPDATE usuarios SET password = :p WHERE usuario = 'admin'"),
+                {'p': hashed_pw}
+            )
+        db.session.commit()
 
 init_db()
 
@@ -83,12 +90,15 @@ def login():
         user_input = request.form['usuario']
         pass_input = request.form['password']
         
-        user = Usuario.query.filter_by(usuario=user_input).first()
+        result = db.session.execute(
+            text('SELECT * FROM usuarios WHERE usuario = :u'),
+            {'u': user_input}
+        ).mappings().fetchone()
         
-        if user and check_password_hash(user.password, pass_input):
-            session['usuario'] = user.usuario
-            session['nombre'] = user.nombre_completo
-            session['rol'] = user.rol
+        if result and check_password_hash(result['password'], pass_input):
+            session['usuario'] = result['usuario']
+            session['nombre'] = result['nombre_completo']
+            session['rol'] = result['rol']
             return redirect(url_for('seguimiento'))
             
     return render_template('login.html')
@@ -106,16 +116,18 @@ def usuarios():
         return redirect(url_for('seguimiento'))
         
     if request.method == 'POST':
-        nuevo_usuario = Usuario(
-            nombre_completo=request.form['nombre_completo'],
-            usuario=request.form['usuario'],
-            password=generate_password_hash(request.form['password']),
-            rol=request.form['rol']
+        nombre = request.form['nombre_completo']
+        usr = request.form['usuario']
+        pwd = generate_password_hash(request.form['password'])
+        rol = request.form['rol']
+        
+        db.session.execute(
+            text('INSERT INTO usuarios (nombre_completo, usuario, password, rol) VALUES (:n, :u, :p, :r)'),
+            {'n': nombre, 'u': usr, 'p': pwd, 'r': rol}
         )
-        db.session.add(nuevo_usuario)
         db.session.commit()
         
-    lista_usuarios = Usuario.query.all()
+    lista_usuarios = db.session.execute(text('SELECT * FROM usuarios')).mappings().fetchall()
     return render_template('usuarios.html', usuarios=lista_usuarios)
 
 @app.route('/usuarios/editar/<int:id>', methods=['GET', 'POST'])
@@ -123,16 +135,27 @@ def editar_usuario(id):
     if 'usuario' not in session or session.get('rol') != 'ADMIN':
         return redirect(url_for('seguimiento'))
         
-    user = Usuario.query.get_or_404(id)
     if request.method == 'POST':
-        user.nombre_completo = request.form['nombre_completo']
-        user.usuario = request.form['usuario']
-        user.rol = request.form['rol']
+        nombre = request.form['nombre_completo']
+        usr = request.form['usuario']
+        pwd = request.form['password']
+        rol = request.form['rol']
         
-        # Solo actualizar la contraseña si se ingresó un nuevo valor
-        if request.form['password']:
-            user.password = generate_password_hash(request.form['password'])
-            
+        if pwd:
+            hashed_pwd = generate_password_hash(pwd)
+            db.session.execute(
+                text('''UPDATE usuarios 
+                        SET nombre_completo = :n, usuario = :u, password = :p, rol = :r 
+                        WHERE id = :id'''),
+                {'n': nombre, 'u': usr, 'p': hashed_pwd, 'r': rol, 'id': id}
+            )
+        else:
+            db.session.execute(
+                text('''UPDATE usuarios 
+                        SET nombre_completo = :n, usuario = :u, rol = :r 
+                        WHERE id = :id'''),
+                {'n': nombre, 'u': usr, 'r': rol, 'id': id}
+            )
         db.session.commit()
         
     return redirect(url_for('usuarios'))
@@ -143,10 +166,8 @@ def eliminar_usuario(id):
         return redirect(url_for('seguimiento'))
         
     if id != 1:
-        user = Usuario.query.get(id)
-        if user:
-            db.session.delete(user)
-            db.session.commit()
+        db.session.execute(text('DELETE FROM usuarios WHERE id = :id'), {'id': id})
+        db.session.commit()
     
     return redirect(url_for('usuarios'))
 
@@ -158,20 +179,24 @@ def estudiantes():
         return redirect(url_for('login'))
         
     if request.method == 'POST':
-        nuevo_estudiante = Estudiante(
-            paterno=request.form['paterno'],
-            materno=request.form['materno'],
-            nombres=request.form['nombres'],
-            nivel=request.form['nivel'],
-            curso=int(request.form['curso']),
-            nombre_padre=request.form['nombre_padre'],
-            celular_padre=request.form['celular_padre'],
-            domicilio=request.form['domicilio']
+        paterno = request.form['paterno']
+        materno = request.form['materno']
+        nombres = request.form['nombres']
+        nivel = request.form['nivel']
+        curso = request.form['curso']
+        padre = request.form['nombre_padre']
+        celular = request.form['celular_padre']
+        domicilio = request.form['domicilio']
+        
+        db.session.execute(
+            text('''INSERT INTO estudiantes 
+                    (paterno, materno, nombres, nivel, curso, nombre_padre, celular_padre, domicilio)
+                    VALUES (:pat, :mat, :nom, :niv, :cur, :pad, :cel, :dom)'''),
+            {'pat': paterno, 'mat': materno, 'nom': nombres, 'niv': nivel, 'cur': curso, 'pad': padre, 'cel': celular, 'dom': domicilio}
         )
-        db.session.add(nuevo_estudiante)
         db.session.commit()
         
-    lista_estudiantes = Estudiante.query.order_by(Estudiante.paterno, Estudiante.materno, Estudiante.nombres).all()
+    lista_estudiantes = db.session.execute(text('SELECT * FROM estudiantes ORDER BY paterno, materno, nombres ASC')).mappings().fetchall()
     return render_template('estudiantes.html', estudiantes=lista_estudiantes)
 
 @app.route('/estudiantes/editar/<int:id>', methods=['GET', 'POST'])
@@ -179,17 +204,23 @@ def editar_estudiante(id):
     if 'usuario' not in session:
         return redirect(url_for('login'))
         
-    estudiante = Estudiante.query.get_or_404(id)
     if request.method == 'POST':
-        estudiante.paterno = request.form['paterno']
-        estudiante.materno = request.form['materno']
-        estudiante.nombres = request.form['nombres']
-        estudiante.nivel = request.form['nivel']
-        estudiante.curso = int(request.form['curso'])
-        estudiante.nombre_padre = request.form['nombre_padre']
-        estudiante.celular_padre = request.form['celular_padre']
-        estudiante.domicilio = request.form['domicilio']
+        paterno = request.form['paterno']
+        materno = request.form['materno']
+        nombres = request.form['nombres']
+        nivel = request.form['nivel']
+        curso = request.form['curso']
+        padre = request.form['nombre_padre']
+        celular = request.form['celular_padre']
+        domicilio = request.form['domicilio']
         
+        db.session.execute(
+            text('''UPDATE estudiantes 
+                    SET paterno = :pat, materno = :mat, nombres = :nom, nivel = :niv, curso = :cur, 
+                        nombre_padre = :pad, celular_padre = :cel, domicilio = :dom 
+                    WHERE id = :id'''),
+            {'pat': paterno, 'mat': materno, 'nom': nombres, 'niv': nivel, 'cur': curso, 'pad': padre, 'cel': celular, 'dom': domicilio, 'id': id}
+        )
         db.session.commit()
         
     return redirect(url_for('estudiantes'))
@@ -199,10 +230,9 @@ def eliminar_estudiante(id):
     if 'usuario' not in session:
         return redirect(url_for('login'))
         
-    estudiante = Estudiante.query.get(id)
-    if estudiante:
-        db.session.delete(estudiante) # La relación cascade eliminará los registros de seguimiento asociados
-        db.session.commit()
+    db.session.execute(text('DELETE FROM seguimiento WHERE estudiante_id = :id'), {'id': id})
+    db.session.execute(text('DELETE FROM estudiantes WHERE id = :id'), {'id': id})
+    db.session.commit()
     
     return redirect(url_for('estudiantes'))
 
@@ -214,26 +244,25 @@ def seguimiento():
         return redirect(url_for('login'))
         
     nivel = request.args.get('nivel', 'Primaria')
-    curso = int(request.args.get('curso', 1))
+    curso = request.args.get('curso', 1)
     
-    estudiantes_filtrados = Estudiante.query.filter_by(
-        nivel=nivel, curso=curso
-    ).order_by(Estudiante.paterno, Estudiante.materno, Estudiante.nombres).all()
+    estudiantes_filtrados = db.session.execute(
+        text('SELECT * FROM estudiantes WHERE nivel = :niv AND curso = :cur ORDER BY paterno, materno, nombres ASC'),
+        {'niv': nivel, 'cur': curso}
+    ).mappings().fetchall()
     
-    return render_template('seguimiento.html', estudiantes=estudiantes_filtrados, nivel_actual=nivel, curso_actual=curso)
+    return render_template('seguimiento.html', estudiantes=estudiantes_filtrados, nivel_actual=nivel, curso_actual=int(curso))
 
 @app.route('/guardar-seguimiento', methods=['POST'])
 def guardar_seguimiento():
     if 'usuario' not in session:
-        return jsonify({'status': 'error', 'message': 'No autorizado'}), 401
+        return jsonify({'status': 'error'}), 401
         
     data = request.json
-    nuevo_registro = Seguimiento(
-        estudiante_id=data['estudiante_id'],
-        materia=data['materia'],
-        tipo_registro=data['tipo']
+    db.session.execute(
+        text('INSERT INTO seguimiento (estudiante_id, materia, tipo_registro) VALUES (:e_id, :mat, :tipo)'),
+        {'e_id': data['estudiante_id'], 'mat': data['materia'], 'tipo': data['tipo']}
     )
-    db.session.add(nuevo_registro)
     db.session.commit()
     return jsonify({'status': 'ok'})
 
@@ -246,14 +275,18 @@ def reporte():
     estudiante = None
     registros = []
     
-    todos_estudiantes = Estudiante.query.order_by(Estudiante.paterno, Estudiante.materno, Estudiante.nombres).all()
+    todos_estudiantes = db.session.execute(text('SELECT * FROM estudiantes ORDER BY paterno, materno, nombres ASC')).mappings().fetchall()
     
     if estudiante_id:
-        estudiante = Estudiante.query.get(estudiante_id)
-        if estudiante:
-            registros = Seguimiento.query.filter_by(
-                estudiante_id=estudiante_id
-            ).order_by(Seguimiento.fecha.desc()).all()
+        estudiante = db.session.execute(
+            text('SELECT * FROM estudiantes WHERE id = :id'),
+            {'id': estudiante_id}
+        ).mappings().fetchone()
+        
+        registros = db.session.execute(
+            text('SELECT * FROM seguimiento WHERE estudiante_id = :id ORDER BY fecha DESC'),
+            {'id': estudiante_id}
+        ).mappings().fetchall()
     
     return render_template('reporte.html', estudiantes=todos_estudiantes, estudiante=estudiante, registros=registros)
 
